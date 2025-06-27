@@ -56,6 +56,12 @@
       ]);
     }
 
+    function looksLikeHtml(content) {
+      const htmlIndicators = ["<html", "<body", "<head", "<div"];
+      const lower = content.toLowerCase();
+      return htmlIndicators.some(tag => lower.includes(tag));
+    }
+
     async function fetchAdsTxt() {
       const resultsDiv = document.getElementById("results");
       resultsDiv.innerHTML = ""; // Clear previous results
@@ -80,6 +86,16 @@
           const response = await fetchWithTimeout(proxyURL, {}, 1000);
           if (!response.ok) throw new Error(`Fetch failed (status ${response.status})`);
           const data = await response.json();
+
+          if (looksLikeHtml(data.contents)) {
+            resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><span class="error">Not a valid ads.txt file (HTML page returned)</span>`;
+            resultsData.push({
+              domain: adsTxtURL,
+              status: "Not a valid ads.txt file",
+              contents: ""
+            });
+            continue;
+          }
 
           resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><pre>${data.contents}</pre>`;
           resultsData.push({
