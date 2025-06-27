@@ -1,54 +1,75 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ads.txt Checker</title>
   <style>
     body {
-      font-family: sans-serif;
-      margin: 2em;
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f9f9f9;
     }
     textarea {
       width: 100%;
       height: 150px;
+      margin-bottom: 10px;
+      padding: 10px;
+      font-size: 14px;
     }
-    pre {
-      background: #f4f4f4;
-      padding: 1em;
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+    .result {
+      background: #fff;
       border: 1px solid #ccc;
+      padding: 10px;
+      margin-top: 15px;
       white-space: pre-wrap;
+    }
+    .error {
+      color: red;
     }
   </style>
 </head>
 <body>
-  <h1>ads.txt Checker</h1>
-  <p>Paste domains below (one per line):</p>
-  <textarea id="domainInput" placeholder="e.g., theguardian.com\nsundial.csun.edu"></textarea><br>
-  <button onclick="runCheck()">Run</button>
+  <h2>ads.txt Fetcher</h2>
+  <p>Paste in a list of domains (one per line):</p>
+  <textarea id="domainList" placeholder="example.com"></textarea>
+  <br>
+  <button onclick="fetchAdsTxt()">Fetch ads.txt</button>
+
   <div id="results"></div>
 
   <script>
-    async function runCheck() {
-      const input = document.getElementById('domainInput').value;
-      const domains = input.split('\n').map(d => d.trim()).filter(Boolean);
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = '';
+    async function fetchAdsTxt() {
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = ""; // Clear previous
+
+      const domains = document.getElementById("domainList").value
+        .split("\n")
+        .map(d => d.trim())
+        .filter(d => d.length > 0);
 
       for (const domain of domains) {
-        const fullUrl = `https://www.${domain}/ads.txt`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`;
+        const displayDomain = domain.startsWith("www.") ? domain : "www." + domain;
+        const adsTxtURL = `https://${displayDomain}/ads.txt`;
+        const proxyURL = `https://api.allorigins.win/get?url=${encodeURIComponent(adsTxtURL)}`;
 
-        const section = document.createElement('div');
-        section.innerHTML = `<h3>${domain}</h3><pre>Loading...</pre>`;
-        resultsDiv.appendChild(section);
+        const resultContainer = document.createElement("div");
+        resultContainer.className = "result";
+        resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br>Loading...`;
+        resultsDiv.appendChild(resultContainer);
 
         try {
-          const res = await fetch(proxyUrl);
-          if (!res.ok) throw new Error(`HTTP status ${res.status}`);
-          const text = await res.text();
-          section.querySelector('pre').textContent = text || '(Empty file)';
-        } catch (err) {
-          section.querySelector('pre').textContent = `Error loading: ${fullUrl} — ${err.message}`;
+          const response = await fetch(proxyURL);
+          if (!response.ok) throw new Error("Fetch failed");
+
+          const data = await response.json();
+          resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><pre>${data.contents}</pre>`;
+        } catch (error) {
+          resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><span class="error">ads.txt not found or inaccessible — ${error.message}</span>`;
         }
       }
     }
