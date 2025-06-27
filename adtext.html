@@ -20,7 +20,6 @@
     button {
       padding: 10px 20px;
       font-size: 16px;
-      margin-right: 10px;
     }
     .result {
       background: #fff;
@@ -35,22 +34,18 @@
   </style>
 </head>
 <body>
-  <h2>ads.txt Checker</h2>
+  <h2>ads.txt Fetcher</h2>
   <p>Paste in a list of domains (one per line):</p>
   <textarea id="domainList" placeholder="example.com"></textarea>
   <br>
   <button onclick="fetchAdsTxt()">Fetch ads.txt</button>
-  <button onclick="exportToCSV()">Export to CSV</button>
 
   <div id="results"></div>
 
   <script>
-    let resultsData = [];
-
     async function fetchAdsTxt() {
       const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = ""; // Clear previous results
-      resultsData = []; // Reset CSV data
+      resultsDiv.innerHTML = ""; // Clear previous
 
       const domains = document.getElementById("domainList").value
         .split("\n")
@@ -69,42 +64,14 @@
 
         try {
           const response = await fetch(proxyURL);
-          if (!response.ok) throw new Error(`Fetch failed (status ${response.status})`);
-          const data = await response.json();
+          if (!response.ok) throw new Error("Fetch failed");
 
+          const data = await response.json();
           resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><pre>${data.contents}</pre>`;
-          resultsData.push({
-            domain: adsTxtURL,
-            status: 200,
-            contents: data.contents.replace(/\r?\n/g, "\\n").replace(/"/g, '""')  // Clean for CSV
-          });
         } catch (error) {
           resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><span class="error">ads.txt not found or inaccessible — ${error.message}</span>`;
-          resultsData.push({
-            domain: adsTxtURL,
-            status: "Error",
-            contents: `ads.txt not found or inaccessible — ${error.message}`
-          });
         }
       }
-    }
-
-    function exportToCSV() {
-      if (resultsData.length === 0) {
-        alert("No data to export. Please run the fetch first.");
-        return;
-      }
-
-      let csv = `"Domain","Status","ads.txt Contents"\n`;
-      resultsData.forEach(row => {
-        csv += `"${row.domain}","${row.status}","${row.contents}"\n`;
-      });
-
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "ads_txt_results.csv";
-      link.click();
     }
   </script>
 </body>
