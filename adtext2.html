@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ads.txt Checker</title>
+  <title>ads.txt Fetcher</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -35,7 +35,7 @@
   </style>
 </head>
 <body>
-  <h2>ads.txt Checker 2</h2>
+  <h2>ads.txt Fetcher</h2>
   <p>Paste in a list of domains (one per line):</p>
   <textarea id="domainList" placeholder="example.com"></textarea>
   <br>
@@ -46,6 +46,15 @@
 
   <script>
     let resultsData = [];
+
+    async function fetchWithTimeout(resource, options = {}, timeout = 1000) {
+      return Promise.race([
+        fetch(resource, options),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout after 1 second")), timeout)
+        )
+      ]);
+    }
 
     async function fetchAdsTxt() {
       const resultsDiv = document.getElementById("results");
@@ -68,7 +77,7 @@
         resultsDiv.appendChild(resultContainer);
 
         try {
-          const response = await fetch(proxyURL);
+          const response = await fetchWithTimeout(proxyURL, {}, 1000);
           if (!response.ok) throw new Error(`Fetch failed (status ${response.status})`);
           const data = await response.json();
 
@@ -76,14 +85,15 @@
           resultsData.push({
             domain: adsTxtURL,
             status: 200,
-            contents: data.contents.replace(/\r?\n/g, "\\n").replace(/"/g, '""')  // Clean for CSV
+            contents: data.contents.replace(/\r?\n/g, "\\n").replace(/"/g, '""')
           });
         } catch (error) {
-          resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><span class="error">ads.txt not found or inaccessible — ${error.message}</span>`;
+          const errorMsg = error.message.includes("Timeout") ? "Page did not load" : `ads.txt not found or inaccessible — ${error.message}`;
+          resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><span class="error">${errorMsg}</span>`;
           resultsData.push({
             domain: adsTxtURL,
-            status: "Error",
-            contents: `ads.txt not found or inaccessible — ${error.message}`
+            status: errorMsg,
+            contents: ""
           });
         }
       }
