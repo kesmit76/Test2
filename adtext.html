@@ -1,62 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ads.txt Fetcher</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5; }
-    textarea { width: 100%; height: 200px; }
-    button { margin-top: 10px; padding: 10px 20px; }
-    pre { background: #eee; padding: 10px; margin-top: 20px; white-space: pre-wrap; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f9f9f9;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      margin-bottom: 10px;
+      padding: 10px;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    .result {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-top: 15px;
+      white-space: pre-wrap;
+    }
+    .error {
+      color: red;
+    }
   </style>
 </head>
 <body>
-  <h2>ads.txt Checker</h2>
-  <textarea id="domains" placeholder="Enter domains, one per line..."></textarea><br>
-  <button onclick="fetchAdsTxt()">Run</button>
+  <h2>ads.txt Fetcher</h2>
+  <p>Paste in a list of domains (one per line):</p>
+  <textarea id="domainList" placeholder="example.com"></textarea>
+  <br>
+  <button onclick="fetchAdsTxt()">Fetch ads.txt</button>
   <button onclick="exportToCSV()">Export to CSV</button>
-  <pre id="output"></pre>
+
+  <div id="results"></div>
 
   <script>
-    const results = [];
+    let resultsData = [];
 
     async function fetchAdsTxt() {
-      results.length = 0;
-      const output = document.getElementById('output');
-      output.textContent = '';
-      const domains = document.getElementById('domains').value.split('\n').map(d => d.trim()).filter(Boolean);
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = ""; // Clear previous results
+      resultsData = []; // Reset CSV data
+
+      const domains = document.getElementById("domainList").value
+        .split("\n")
+        .map(d => d.trim())
+        .filter(d => d.length > 0);
 
       for (const domain of domains) {
-        const url = `https://www.${domain}/ads.txt`;
+        const displayDomain = domain.startsWith("www.") ? domain : "www." + domain;
+        const adsTxtURL = `https://${displayDomain}/ads.txt`;
+        const proxyURL = `https://api.allorigins.win/get?url=${encodeURIComponent(adsTxtURL)}`;
+
+        const resultContainer = document.createElement("div");
+        resultContainer.className = "result";
+        resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br>Loading...`;
+        resultsDiv.appendChild(resultContainer);
+
         try {
-          const res = await fetch(url, { mode: 'cors' });
-          if (!res.ok) throw new Error('Status ' + res.status);
-          const text = await res.text();
-          results.push({ domain, content: text });
-          output.textContent += `--- ${url} ---\n${text}\n\n`;
-        } catch (e) {
-          const errorMsg = `ads.txt not found or inaccessible at ${url} — ${e.message}`;
-          results.push({ domain, content: 'No ads.txt file was found' });
-          output.textContent += `${errorMsg}\n\n`;
+          const response = await fetch(proxyURL);
+          if (!response.ok) throw new Error(`Fetch failed (status ${response.status})`);
+          const data = await response.json();
+
+          resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><pre>${data.contents}</pre>`;
+          resultsData.push({
+            domain: adsTxtURL,
+            status: 200,
+            contents: data.contents.replace(/\r?\n/g, "\\n").replace(/"/g, '""')  // Clean for CSV
+          });
+        } catch (error) {
+          resultContainer.innerHTML = `<strong>${adsTxtURL}</strong><br><span class="error">ads.txt not found or inaccessible — ${error.message}</span>`;
+          resultsData.push({
+            domain: adsTxtURL,
+            status: "Error",
+            contents: `ads.txt not found or inaccessible — ${error.message}`
+          });
         }
       }
     }
 
     function exportToCSV() {
-      const lines = ['Domain,ads.txt Content'];
-      for (const { domain, content } of results) {
-        const sanitized = content.replace(/"/g, '""').replace(/\n/g, '\\n');
-        lines.push(`"${domain}","${sanitized}"`);
+      if (resultsData.length === 0) {
+        alert("No data to export. Please run the fetch first.");
+        return;
       }
-      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'ads_txt_results.csv';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+
+      let csv = `"Domain","Status","ads.txt Contents"\n`;
+      resultsData.forEach(row => {
+        csv += `"${row.domain}","${row.status}","${row.contents}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "ads_txt_results.csv";
+      link.click();
     }
   </script>
 </body>
