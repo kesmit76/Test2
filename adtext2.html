@@ -48,7 +48,7 @@
   <script>
     let resultsData = [];
 
-    async function fetchWithTimeout(resource, options = {}, timeout = 1000) {
+    async function fetchWithTimeout(resource, options = {}, timeout = 2000) {
       return Promise.race([
         fetch(resource, options),
         new Promise((_, reject) =>
