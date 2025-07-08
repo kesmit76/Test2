@@ -34,7 +34,7 @@
   </style>
 </head>
 <body>
-  <h2>ads.txt Checker</h2>
+  <h2>ads.txt Checker 2</h2>
   <p>Paste in up to 500 domains (one per line):</p>
   <textarea id="domainList" placeholder="example.com"></textarea><br>
   <button onclick="beginCheck()">Begin</button>
@@ -59,8 +59,8 @@
 
     async function beginCheck() {
       const resultsDiv = document.getElementById("results");
-      resultsDiv.textContent = "Processing...";
-      results.length = 0; // clear previous
+      resultsDiv.innerHTML = ""; // clear previous
+      results.length = 0;
 
       const domains = document.getElementById("domainList").value
         .split("\n")
@@ -68,36 +68,36 @@
         .filter(d => d.length > 0)
         .slice(0, 500);
 
-      let output = "";
-
       for (const domain of domains) {
         const cleanDomain = domain.startsWith("www.") ? domain : "www." + domain;
         const url = `https://${cleanDomain}/ads.txt`;
 
+        const outputBlock = document.createElement("div");
+        outputBlock.innerHTML = `<strong>${url}</strong><br>Checking...`;
+        resultsDiv.appendChild(outputBlock);
+
         try {
           const response = await fetchWithTimeout(url, 1000);
-
           const contentType = response.headers.get("content-type") || "";
+
           if (!response.ok) {
+            outputBlock.innerHTML = `<strong>${url}</strong><br><span class="error">No ads.txt file found (Status: ${response.status})</span>`;
             results.push([url, "No ads.txt file found", response.status]);
-            output += `${url} — No ads.txt file found (Status: ${response.status})\n`;
           } else if (!contentType.includes("text/plain")) {
+            outputBlock.innerHTML = `<strong>${url}</strong><br><span class="error">Response was not plain text</span>`;
             results.push([url, "Response was not plain text", response.status]);
-            output += `${url} — Response was not plain text (Status: ${response.status})\n`;
           } else {
             const text = await response.text();
+            outputBlock.innerHTML = `<strong>${url}</strong><br><pre>${text.trim()}</pre>`;
             results.push([url, text.trim(), response.status]);
-            output += `${url} —\n${text.trim()}\n\n`;
           }
         } catch (err) {
+          outputBlock.innerHTML = `<strong>${url}</strong><br><span class="error">Page did not load</span>`;
           results.push([url, "Page did not load", "Error"]);
-          output += `${url} — Page did not load\n`;
         }
 
-        await sleep(150); // brief pause to be polite to servers
+        await sleep(100); // brief pause
       }
-
-      resultsDiv.textContent = output;
     }
 
     function exportCSV() {
