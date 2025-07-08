@@ -92,7 +92,7 @@
 
       let csvContent = "URL,Content,Status\n";
       results.forEach(([url, content, status]) => {
-        const row = [url, content, status].map(v => `"${v.replace(/"/g, '""')}"`).join(",");
+        const row = [url, content, status].map(v => `"${String(v).replace(/"/g, '""')}"`).join(",");
         csvContent += row + "\n";
       });
 
