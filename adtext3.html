@@ -1,51 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>ads.txt Checker</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background-color: #f2f2f2;
-    }
-    textarea {
-      width: 100%;
-      height: 200px;
-      padding: 10px;
-      font-size: 14px;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 10px 10px 0 0;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    .result {
-      margin-top: 20px;
-      white-space: pre-wrap;
-      background: #fff;
-      border: 1px solid #ccc;
-      padding: 10px;
-    }
-    .error {
-      color: red;
-    }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f7f7f7; }
+    textarea { width: 100%; height: 200px; padding: 10px; font-size: 14px; }
+    button { padding: 10px 20px; font-size: 16px; margin: 10px 5px 0 0; cursor: pointer; }
+    .result-block { margin-top: 15px; padding: 10px; background: #fff; border: 1px solid #ccc; white-space: pre-wrap; }
+    .error { color: red; }
   </style>
 </head>
 <body>
-  <h2>ads.txt Checker 2</h2>
-  <p>Paste in up to 500 domains (one per line):</p>
-  <textarea id="domainList" placeholder="example.com"></textarea><br>
+  <h2>ads.txt Checker 3</h2>
+  <p>Paste up to 500 domains (one per line):</p>
+  <textarea id="domainList"></textarea><br>
   <button onclick="beginCheck()">Begin</button>
   <button onclick="exportCSV()">Export to CSV</button>
-  <div id="results" class="result"></div>
+  <div id="results"></div>
 
   <script>
     const results = [];
 
     function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
+      return new Promise(r => setTimeout(r, ms));
     }
 
     function fetchWithTimeout(url, timeout = 1000) {
@@ -58,61 +36,63 @@
     }
 
     async function beginCheck() {
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = ""; // clear previous
       results.length = 0;
-
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "";
       const domains = document.getElementById("domainList").value
         .split("\n")
-        .map(d => d.trim())
-        .filter(d => d.length > 0)
+        .map(s => s.trim())
+        .filter(s => s)
         .slice(0, 500);
 
-      for (const domain of domains) {
-        const cleanDomain = domain.startsWith("www.") ? domain : "www." + domain;
-        const url = `https://${cleanDomain}/ads.txt`;
+      for (const d of domains) {
+        const domain = d.startsWith("www.") ? d : "www." + d;
+        const targetURL = `https://${domain}/ads.txt`;
+        const proxyURL = `https://corsproxy.io/?${encodeURIComponent(targetURL)}`;
 
-        const outputBlock = document.createElement("div");
-        outputBlock.innerHTML = `<strong>${url}</strong><br>Checking...`;
-        resultsDiv.appendChild(outputBlock);
+        const block = document.createElement("div");
+        block.className = "result-block";
+        block.textContent = `${targetURL} → Checking...`;
+        resultsDiv.appendChild(block);
 
         try {
-          const response = await fetchWithTimeout(url, 1000);
-          const contentType = response.headers.get("content-type") || "";
+          const resp = await fetchWithTimeout(proxyURL, 1000);
 
-          if (!response.ok) {
-            outputBlock.innerHTML = `<strong>${url}</strong><br><span class="error">No ads.txt file found (Status: ${response.status})</span>`;
-            results.push([url, "No ads.txt file found", response.status]);
-          } else if (!contentType.includes("text/plain")) {
-            outputBlock.innerHTML = `<strong>${url}</strong><br><span class="error">Response was not plain text</span>`;
-            results.push([url, "Response was not plain text", response.status]);
-          } else {
-            const text = await response.text();
-            outputBlock.innerHTML = `<strong>${url}</strong><br><pre>${text.trim()}</pre>`;
-            results.push([url, text.trim(), response.status]);
+          if (!resp.ok) {
+            throw new Error("HTTP " + resp.status);
           }
+
+          const ct = resp.headers.get("content-type") || "";
+          if (!ct.includes("text/plain")) {
+            throw new Error("Not plain text (Content-Type: " + ct + ")");
+          }
+
+          const txt = await resp.text();
+          block.textContent = `${targetURL}:\n${txt.trim()}`;
+          results.push([targetURL, txt.replace(/\r?\n/g, '\\n'), resp.status]);
         } catch (err) {
-          outputBlock.innerHTML = `<strong>${url}</strong><br><span class="error">Page did not load</span>`;
-          results.push([url, "Page did not load", "Error"]);
+          const msg = err.message.includes("Timeout")
+            ? "Page did not load"
+            : err.message.startsWith("Not plain text")
+              ? "Response not ads.txt"
+              : (err.message.startsWith("HTTP") ? "No ads.txt file found" : err.message);
+          block.innerHTML = `<strong>${targetURL}</strong><br><span class="error">${msg}</span>`;
+          results.push([targetURL, msg, "Error"]);
         }
 
-        await sleep(100); // brief pause
+        await sleep(150); // avoid rapid requests
       }
     }
 
     function exportCSV() {
-      let csvContent = "data:text/csv;charset=utf-8,URL,Content,Status\n";
-      results.forEach(row => {
-        const escaped = row.map(col =>
-          `"${(col || "").replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`
-        );
-        csvContent += escaped.join(",") + "\n";
-      });
-
-      const encodedUri = encodeURI(csvContent);
+      if (!results.length) return alert("Run Begin first!");
+      let csv = "data:text/csv;charset=utf-8,URL,Content,Status\n";
+      for (const row of results) {
+        csv += row.map(c => `"${c.replace(/"/g, '""')}"`).join(",") + "\n";
+      }
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "ads_txt_results.csv");
+      link.href = encodeURI(csv);
+      link.download = "ads_txt_results.csv";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
