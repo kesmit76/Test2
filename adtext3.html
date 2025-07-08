@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h2>ads.txt Checker 3</h2>
+  <h2>ads.txt Checker</h2>
   <p>Paste up to 500 domains (one per line):</p>
   <textarea id="domainList"></textarea><br>
   <button onclick="beginCheck()">Begin</button>
@@ -29,74 +29,4 @@
     function fetchWithTimeout(url, timeout = 1000) {
       return Promise.race([
         fetch(url),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout after 1 second")), timeout)
-        )
-      ]);
-    }
-
-    async function beginCheck() {
-      results.length = 0;
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "";
-      const domains = document.getElementById("domainList").value
-        .split("\n")
-        .map(s => s.trim())
-        .filter(s => s)
-        .slice(0, 500);
-
-      for (const d of domains) {
-        const domain = d.startsWith("www.") ? d : "www." + d;
-        const targetURL = `https://${domain}/ads.txt`;
-        const proxyURL = `https://corsproxy.io/?${encodeURIComponent(targetURL)}`;
-
-        const block = document.createElement("div");
-        block.className = "result-block";
-        block.textContent = `${targetURL} → Checking...`;
-        resultsDiv.appendChild(block);
-
-        try {
-          const resp = await fetchWithTimeout(proxyURL, 1000);
-
-          if (!resp.ok) {
-            throw new Error("HTTP " + resp.status);
-          }
-
-          const ct = resp.headers.get("content-type") || "";
-          if (!ct.includes("text/plain")) {
-            throw new Error("Not plain text (Content-Type: " + ct + ")");
-          }
-
-          const txt = await resp.text();
-          block.textContent = `${targetURL}:\n${txt.trim()}`;
-          results.push([targetURL, txt.replace(/\r?\n/g, '\\n'), resp.status]);
-        } catch (err) {
-          const msg = err.message.includes("Timeout")
-            ? "Page did not load"
-            : err.message.startsWith("Not plain text")
-              ? "Response not ads.txt"
-              : (err.message.startsWith("HTTP") ? "No ads.txt file found" : err.message);
-          block.innerHTML = `<strong>${targetURL}</strong><br><span class="error">${msg}</span>`;
-          results.push([targetURL, msg, "Error"]);
-        }
-
-        await sleep(150); // avoid rapid requests
-      }
-    }
-
-    function exportCSV() {
-      if (!results.length) return alert("Run Begin first!");
-      let csv = "data:text/csv;charset=utf-8,URL,Content,Status\n";
-      for (const row of results) {
-        csv += row.map(c => `"${c.replace(/"/g, '""')}"`).join(",") + "\n";
-      }
-      const link = document.createElement("a");
-      link.href = encodeURI(csv);
-      link.download = "ads_txt_results.csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  </script>
-</body>
-</html>
+        new Pr
