@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ads.txt Checker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f2f2f2;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      padding: 10px;
+      font-size: 14px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px 10px 0 0;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      white-space: pre-wrap;
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h2>ads.txt Checker</h2>
+  <p>Paste in up to 500 domains (one per line):</p>
+  <textarea id="domainList" placeholder="example.com"></textarea><br>
+  <button onclick="beginCheck()">Begin</button>
+  <button onclick="exportCSV()">Export to CSV</button>
+  <div id="results" class="result"></div>
+
+  <script>
+    const results = [];
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function fetchWithTimeout(url, timeout = 1000) {
+      return Promise.race([
+        fetch(url),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout after 1 second")), timeout)
+        )
+      ]);
+    }
+
+    async function beginCheck() {
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.textContent = "Processing...";
+      results.length = 0; // clear previous
+
+      const domains = document.getElementById("domainList").value
+        .split("\n")
+        .map(d => d.trim())
+        .filter(d => d.length > 0)
+        .slice(0, 500);
+
+      let output = "";
+
+      for (const domain of domains) {
+        const cleanDomain = domain.startsWith("www.") ? domain : "www." + domain;
+        const url = `https://${cleanDomain}/ads.txt`;
+
+        try {
+          const response = await fetchWithTimeout(url, 1000);
+
+          const contentType = response.headers.get("content-type") || "";
+          if (!response.ok) {
+            results.push([url, "No ads.txt file found", response.status]);
+            output += `${url} — No ads.txt file found (Status: ${response.status})\n`;
+          } else if (!contentType.includes("text/plain")) {
+            results.push([url, "Response was not plain text", response.status]);
+            output += `${url} — Response was not plain text (Status: ${response.status})\n`;
+          } else {
+            const text = await response.text();
+            results.push([url, text.trim(), response.status]);
+            output += `${url} —\n${text.trim()}\n\n`;
+          }
+        } catch (err) {
+          results.push([url, "Page did not load", "Error"]);
+          output += `${url} — Page did not load\n`;
+        }
+
+        await sleep(150); // brief pause to be polite to servers
+      }
+
+      resultsDiv.textContent = output;
+    }
+
+    function exportCSV() {
+      let csvContent = "data:text/csv;charset=utf-8,URL,Content,Status\n";
+      results.forEach(row => {
+        const escaped = row.map(col =>
+          `"${(col || "").replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`
+        );
+        csvContent += escaped.join(",") + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "ads_txt_results.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
